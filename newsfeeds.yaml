@@ -1,0 +1,4 @@
+newsfeeds:
+  - "RIA Novosti": "https://ria.ru/export/rss2/archive/index.xml"
+  - "TASS": "https://tass.ru/rss/v2.xml"
+  - "Kommersant": "https://www.kommersant.ru/RSS/news.xml"
