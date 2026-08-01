@@ -13,7 +13,7 @@ NewsMill — это распределённая система, состоящ�
 
 ## Архитектура
 
-```
+```text
 ┌────────────┐     ┌──────────────┐     ┌────────────┐     ┌──────────────┐
 │  RSS-ленты │ ──▶ │   Monitor    │ ──▶ │  RabbitMQ  │ ──▶ │    Worker    │
 │ (агентства)│     │  (FastAPI)   │     │  (очередь) │     │  (FastStream)│
@@ -44,7 +44,7 @@ NewsMill — это распределённая система, состоящ�
 
 ## Структура каталогов
 
-```
+```text
 src/
   newsmill/
     __init__.py
@@ -57,7 +57,9 @@ tests/
   worker/            # Тесты Worker-сервиса
 pyproject.toml       # Конфигурация проекта и зависимостей
 newsfeeds.yaml       # Список RSS-лент
-docker-compose.yml   # Оркестрация сервисов (планируется)
+Dockerfile           # Многоступенчатый Docker-образ приложения
+docker-compose.yml   # Оркестрация сервисов (Docker Compose)
+.dockerignore        # Исключения из контекста сборки Docker
 ```
 
 ## Эндпоинты сервисов
@@ -144,7 +146,7 @@ uv run alembic upgrade head
 
 - Python 3.12
 - UV (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- Docker (для RabbitMQ и PostgreSQL)
+- Docker и Docker Compose (для запуска всех сервисов — RabbitMQ, PostgreSQL, Monitor, Worker)
 
 ### Установка зависимостей
 
@@ -182,6 +184,36 @@ python -m src.newsmill.worker.main
 
 Worker подписывается на очередь RabbitMQ (`RABBITMQ_QUEUE`), десериализует сообщения в `NewsItem`, извлекает именованные сущности (PER, ORG, LOC, MISC) с помощью SpaCy (`ru_core_news_md`) и сохраняет новость с сущностями в PostgreSQL.
 
+### Все сервисы (Docker Compose)
+
+Запуск всех компонентов NewsMill — **4 отдельных контейнера** (RabbitMQ, PostgreSQL, Monitor, Worker) — одной командой:
+
+```bash
+docker compose up --build
+```
+
+Конфигурация оркестрации находится в `docker-compose.yml`:
+
+| Контейнер        | Сервис     | Описание                                        |
+|------------------|------------|-------------------------------------------------|
+| `newsmill-queue` | RabbitMQ   | Брокер сообщений (порты `5672`, `15672`)        |
+| `newsmill-db`    | PostgreSQL | База данных `newsfeeds` (порт `5432`)           |
+| `newsmill-monitor` | Monitor  | FastAPI-сервис (порт `8000`)                    |
+| `newsmill-worker`  | Worker   | FastStream-консюмер (без внешних портов)        |
+
+Все сервисы размещены в общей сети `newsmill-network`, используют именованные тома для персистентности данных и перезапускаются при сбоях (`restart: unless-stopped`). Конфигурация загружается из `.env`, при этом хосты `RABBITMQ_HOST=queue` и `DB_HOST=db` автоматически переопределяются на имена контейнеров.
+
+Проверка работоспособности:
+
+- Monitor: `GET http://localhost:8000/health` → `{"status": "ok"}`
+- RabbitMQ Management UI: `http://localhost:15672` (guest/guest)
+
+Остановка всех сервисов:
+
+```bash
+docker compose down
+```
+
 ## Статус
 
 - [x] Структура каталогов по сервисам
@@ -190,4 +222,4 @@ Worker подписывается на очередь RabbitMQ (`RABBITMQ_QUEUE`
 - [x] Реализация Worker-сервиса
 - [x] Модели базы данных
 - [x] Миграции (Alembic)
-- [ ] Docker Compose
+- [x] Docker Compose

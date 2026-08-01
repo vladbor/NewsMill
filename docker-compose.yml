@@ -1,0 +1,119 @@
+# NewsMill — orchestration of the 4 service containers:
+# queue (RabbitMQ), db (PostgreSQL), monitor (FastAPI), worker (FastStream).
+
+name: newsmill
+
+services:
+  # RabbitMQ message broker (transport between Monitor and Worker).
+  queue:
+    image: rabbitmq:4-management
+    container_name: newsmill-queue
+    hostname: queue
+    restart: unless-stopped
+    ports:
+      - "5672:5672" # AMQP protocol
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - queue-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - newsmill-network
+
+  # PostgreSQL database (stores news items and extracted entities).
+  db:
+    image: postgres:17
+    container_name: newsmill-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+      POSTGRES_DB: ${DB_NAME:-newsfeeds}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-newsfeeds}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - newsmill-network
+
+  # Monitor service - polls RSS feeds and publishes news to the queue.
+  monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: newsmill-monitor
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Override host values with Docker service names on the shared network.
+      RABBITMQ_HOST: queue
+      DB_HOST: db
+    depends_on:
+      queue:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:8000/health",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - newsmill-network
+
+  # Worker service - consumes news from the queue, extracts entities, persists.
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: newsmill-worker
+    restart: unless-stopped
+    command: ["python", "-m", "newsmill.worker.main"]
+    env_file:
+      - .env
+    environment:
+      # Override host values with Docker service names on the shared network.
+      RABBITMQ_HOST: queue
+      DB_HOST: db
+    depends_on:
+      queue:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - newsmill-network
+
+volumes:
+  queue-data:
+    name: newsmill-queue-data
+  db-data:
+    name: newsmill-db-data
+
+networks:
+  newsmill-network:
+    name: newsmill-network
+    driver: bridge
