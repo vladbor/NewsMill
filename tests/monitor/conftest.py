@@ -22,6 +22,11 @@ def settings() -> Settings:
         rabbitmq_queue="news",
         poll_interval_seconds=1,
         newsfeeds_path="newsfeeds.yaml",
+        db_host="db-test",
+        db_port=5432,
+        db_user="dbuser",
+        db_pass="dbpass",
+        db_name="newsfeeds",
     )
 
 

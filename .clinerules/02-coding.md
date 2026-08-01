@@ -4,6 +4,7 @@
 - Always read `README.md` first to understand the project context and requirements.
 - Follow the existing project structure and conventions — do not reorganize files without explicit approval.
 - Review the relevant source files before writing or modifying code.
+- Use Context7 MCP as documentation source.
 
 ## Formatting & Linting
 - Always run `ruff format .` and `ruff check .` before committing changes.

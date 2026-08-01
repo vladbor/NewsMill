@@ -1,0 +1,137 @@
+"""FastStream application for the Worker service."""
+
+from __future__ import annotations
+
+import json
+import logging
+
+from faststream import FastStream, Logger
+from faststream.rabbit import RabbitBroker
+from sqlalchemy import select
+
+from newsmill.common.config import Settings
+from newsmill.common.db import Entity, News
+from newsmill.common.models import NewsItem
+from newsmill.worker.database import get_session_factory
+from newsmill.worker.ner import EntityExtraction, extract_entities
+
+logger = logging.getLogger(__name__)
+
+
+def _build_amqp_url(host: str, port: int, user: str, password: str) -> str:
+    """Build an AMQP connection URL from individual parts.
+
+    Args:
+        host: RabbitMQ broker host.
+        port: RabbitMQ broker port.
+        user: RabbitMQ username.
+        password: RabbitMQ password.
+
+    Returns:
+        A fully-formed AMQP connection URL.
+    """
+    return f"amqp://{user}:{password}@{host}:{port}/"
+
+
+def _deserialize_item(body: bytes) -> NewsItem:
+    """Deserialize a JSON message body into a NewsItem.
+
+    Args:
+        body: Raw message body bytes.
+
+    Returns:
+        A validated :class:`NewsItem` instance.
+
+    Raises:
+        json.JSONDecodeError: If the body is not valid JSON.
+        pydantic.ValidationError: If the payload does not match NewsItem.
+    """
+    payload = json.loads(body.decode("utf-8"))
+    return NewsItem.model_validate(payload)
+
+
+async def _persist(
+    settings: Settings, item: NewsItem, extracted: list[EntityExtraction]
+) -> None:
+    """Persist a news item and its entities to the database.
+
+    Args:
+        settings: Application settings containing the database URL.
+        item: The validated news item.
+        extracted: List of extracted entity records.
+    """
+    factory = get_session_factory(settings)
+    async with factory() as session:
+        existing = await session.scalar(select(News).where(News.link == item.link))
+        if existing is not None:
+            logger.info("News item already exists, skipping: %s", item.link)
+            return
+
+        news = News(
+            source=item.source,
+            title=item.title,
+            link=item.link,
+            published_at=item.published_at,
+            text=item.text,
+        )
+        session.add(news)
+        await session.flush()
+
+        for record in extracted:
+            session.add(
+                Entity(
+                    news_id=news.id,
+                    text=record.text,
+                    label=record.label,
+                    count=record.count,
+                )
+            )
+        await session.commit()
+        logger.info(
+            "Persisted news item %s with %d entities", item.link, len(extracted)
+        )
+
+
+def create_app(settings: Settings) -> FastStream:
+    """Create the FastStream Worker application.
+
+    Args:
+        settings: Application settings loaded from environment variables.
+
+    Returns:
+        A configured :class:`FastStream` application.
+    """
+    broker = RabbitBroker(
+        url=_build_amqp_url(
+            settings.rabbitmq_host,
+            settings.rabbitmq_port,
+            settings.rabbitmq_user,
+            settings.rabbitmq_pass,
+        )
+    )
+
+    @broker.subscriber(settings.rabbitmq_queue)
+    async def handle_news_item(body: bytes, logger: Logger) -> None:
+        """Process a single news message from the queue.
+
+        Deserializes the message, extracts named entities, and persists the
+        news item plus its entities to the database. Errors are logged and the
+        message is acknowledged so a malformed item does not crash the Worker.
+
+        Args:
+            body: Raw JSON message body.
+            logger: FastStream logger.
+        """
+        try:
+            item = _deserialize_item(body)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.error("Failed to deserialize message: %s", exc)
+            return
+
+        extracted = extract_entities(item.title, item.text)
+        try:
+            await _persist(settings, item, extracted)
+        except Exception:
+            logger.exception("Failed to persist news item %s", item.link)
+
+    return FastStream(broker)

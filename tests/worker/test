@@ -1,0 +1,63 @@
+"""Tests for the SpaCy NER entity extraction."""
+
+from __future__ import annotations
+
+from newsmill.worker.ner import (
+    SUPPORTED_LABELS,
+    _aggregate,
+    _normalize_label,
+    extract_entities,
+)
+
+
+def test_normalize_label_maps_person_and_gpe() -> None:
+    """Test that PERSON and GPE labels are normalized."""
+    assert _normalize_label("PERSON") == "PER"
+    assert _normalize_label("GPE") == "LOC"
+    assert _normalize_label("ORG") == "ORG"
+
+
+def test_aggregate_counts_and_filters(fake_entities) -> None:
+    """Test that entities are aggregated by text and label."""
+    raw = [(e.text, e.label_) for e in fake_entities]
+    result = _aggregate(raw)
+
+    by_key = {(r.text, r.label): r for r in result}
+    assert by_key[("Россия", "LOC")].count == 2
+    assert by_key[("Иванов", "PER")].count == 1
+    assert by_key[("Москва", "LOC")].count == 1
+    assert by_key[("Неважно", "MISC")].count == 1
+
+
+def test_aggregate_filters_unsupported_labels() -> None:
+    """Test that unsupported labels are dropped."""
+    raw = [("Текст", "DATE"), ("Иванов", "PER")]
+    result = _aggregate(raw)
+
+    assert len(result) == 1
+    assert result[0].label == "PER"
+
+
+def test_supported_labels_contains_expected() -> None:
+    """Test that the supported label set is correct."""
+    assert SUPPORTED_LABELS == {"PER", "ORG", "LOC", "MISC"}
+
+
+def test_extract_entities_returns_empty_when_model_unavailable(monkeypatch) -> None:
+    """Test that extraction returns an empty list when the model is missing."""
+    monkeypatch.setattr("newsmill.worker.ner.get_nlp", lambda: None)
+    assert extract_entities("Заголовок", "Текст") == []
+
+
+def test_extract_entities_uses_pipeline(monkeypatch, fake_entities) -> None:
+    """Test that extraction runs the pipeline and aggregates entities."""
+    from tests.worker.conftest import FakeDoc, FakeNlp
+
+    docs = [FakeDoc(fake_entities), FakeDoc([])]
+    monkeypatch.setattr("newsmill.worker.ner.get_nlp", lambda: FakeNlp(docs))
+
+    result = extract_entities("Заголовок", "Текст")
+
+    by_key = {(r.text, r.label): r for r in result}
+    assert by_key[("Россия", "LOC")].count == 2
+    assert by_key[("Иванов", "PER")].count == 1

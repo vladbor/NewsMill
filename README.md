@@ -82,10 +82,61 @@ docker-compose.yml   # Оркестрация сервисов (планируе
 | `RABBITMQ_QUEUE`         | Имя durable-очереди для сообщений новостей      |
 | `POLL_INTERVAL_SECONDS`  | Интервал периодического опроса RSS-лент (сек.)  |
 | `NEWSFEEDS_PATH`         | Путь к файлу `newsfeeds.yaml` (по умолчанию)    |
+| `DB_HOST`                | Хост PostgreSQL                                  |
+| `DB_PORT`                | Порт PostgreSQL                                  |
+| `DB_USER`                | Пользователь PostgreSQL                          |
+| `DB_PASS`                | Пароль PostgreSQL                                |
+| `DB_NAME`                | Имя базы данных PostgreSQL (`newsfeeds`)         |
 
-## База данных (планируется)
+## База данных
 
-Схема таблиц `news` и `entities` будет добавлена при реализации Worker-сервиса и моделей БД.
+Схема базы данных `newsfeeds` содержит две таблицы:
+
+### Таблица `news`
+
+| Колонка        | Тип      | Ограничения                  | Описание                          |
+|----------------|----------|------------------------------|-----------------------------------|
+| `id`           | integer  | PK, autoincrement, NOT NULL  | Первичный ключ                    |
+| `source`       | string   | NOT NULL                     | Название агентства                |
+| `title`        | string   | NOT NULL                     | Заголовок новости                 |
+| `link`         | string   | UNIQUE, NOT NULL             | Ссылка на статью                  |
+| `published_at` | datetime | NOT NULL                     | Дата публикации                   |
+| `text`         | text     | nullable                     | Описание/содержимое новости       |
+| `created_at`   | datetime | NOT NULL, default now        | Время создания записи в БД        |
+
+### Таблица `entities`
+
+| Колонка   | Тип      | Ограничения                          | Описание                          |
+|-----------|----------|--------------------------------------|-----------------------------------|
+| `id`      | integer  | PK, autoincrement, NOT NULL          | Первичный ключ                    |
+| `news_id` | integer  | FK → `news.id`, ON DELETE CASCADE    | Ссылка на новость                 |
+| `text`    | string   | NOT NULL                             | Текст сущности                    |
+| `label`   | string   | NOT NULL                             | Тип сущности (PER, ORG, LOC, MISC)|
+| `count`   | integer  | NOT NULL, default 1                  | Количество вхождений              |
+
+## Миграции (Alembic)
+
+Миграции управляются через [Alembic](https://alembic.sqlalchemy.org/) и находятся в каталоге `migrations/`.
+
+Строка подключения к базе данных собирается в `migrations/env.py` из переменных `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASS`, `DB_NAME` (дефолты совпадают с `src/newsmill/common/config.py`). Для соединения используется асинхронный драйвер `asyncpg`.
+
+### Генерация новой миграции
+
+Создать файл миграции на основе изменений ORM-моделей:
+
+```bash
+uv run alembic revision --autogenerate -m "описание изменения"
+```
+
+### Применение миграций
+
+Миграции **не применяются автоматически** — это ручная операция. Для применения используйте:
+
+```bash
+uv run alembic upgrade head
+```
+
+После применения миграции зафиксируйте новый файл в каталоге `migrations/versions/` в git.
 
 ## Установка
 
@@ -121,11 +172,22 @@ uvicorn src.newsmill.monitor.app:app --host 0.0.0.0 --port 8000
 - `GET /health` — проверка состояния
 - `POST /refresh` — принудительный опрос
 
+### Worker (локально)
+
+Запуск FastStream-консюмера Worker:
+
+```bash
+python -m src.newsmill.worker.main
+```
+
+Worker подписывается на очередь RabbitMQ (`RABBITMQ_QUEUE`), десериализует сообщения в `NewsItem`, извлекает именованные сущности (PER, ORG, LOC, MISC) с помощью SpaCy (`ru_core_news_md`) и сохраняет новость с сущностями в PostgreSQL.
+
 ## Статус
 
 - [x] Структура каталогов по сервисам
 - [x] `pyproject.toml` с зависимостями
 - [x] Реализация Monitor-сервиса
-- [ ] Реализация Worker-сервиса
-- [ ] Модели базы данных и миграции
+- [x] Реализация Worker-сервиса
+- [x] Модели базы данных
+- [x] Миграции (Alembic)
 - [ ] Docker Compose
