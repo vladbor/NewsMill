@@ -7,7 +7,7 @@ Docker Compose orchestrates all services in the NewsMill project: Queue (RabbitM
 - Define all services in `docker-compose.yml` at the project root.
 - Services to include:
   - **queue** — RabbitMQ message broker (image: `rabbitmq:4-management`)
-  - **db** — PostgreSQL database (image: `postgres:17`)
+  - **db** — PostgreSQL database (image: `postgres:18`)
   - **monitor** — FastAPI application (Monitor service)
   - **worker** — FastStream application (Worker service)
 
@@ -18,7 +18,7 @@ Docker Compose orchestrates all services in the NewsMill project: Queue (RabbitM
 - Use a named volume for persistent data (optional).
 
 ## Database Service
-- Use `postgres:17` image.
+- Use `postgres:18` image.
 - Expose port: `5432:5432` (or omit for internal-only access).
 - Set environment variables: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`.
 - Use a named volume for persistent data storage.

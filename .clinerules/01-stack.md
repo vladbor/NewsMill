@@ -32,7 +32,7 @@
 - **SpaCy** — NER (Named Entity Recognition) with Russian-language models (`ru_core_news_sm`, `ru_core_news_md`, etc.)
 
 ## Database
-- **PostgreSQL** version 17 in **Docker**
+- **PostgreSQL** version 18 in **Docker**
 - **SQLAlchemy** — ORM for database models
 - **Alembic** — migrations (generate only, never auto-apply)
 

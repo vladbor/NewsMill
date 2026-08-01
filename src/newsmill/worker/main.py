@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from newsmill.common.config import Settings
 from newsmill.worker.app import create_app
 
@@ -10,7 +12,7 @@ def main() -> None:
     """Run the FastStream Worker application."""
     settings = Settings()
     app = create_app(settings)
-    app.run()
+    asyncio.run(app.run())
 
 
 if __name__ == "__main__":

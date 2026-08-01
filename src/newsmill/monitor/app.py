@@ -58,7 +58,8 @@ async def _periodic_poll(state: MonitorState) -> None:
     while True:
         try:
             async with httpx.AsyncClient(
-                timeout=httpx.Timeout(connect=10.0, read=30.0, write=30.0, pool=30.0)
+                timeout=httpx.Timeout(connect=10.0, read=30.0, write=30.0, pool=30.0),
+                follow_redirects=True,
             ) as client:
                 await poll_all_feeds(
                     client, state.feeds, state.publisher, state.seen_guids

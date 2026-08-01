@@ -20,7 +20,7 @@ class News(Base):
         source: News agency name.
         title: News headline.
         link: URL to the full article (unique).
-        published_at: Publication datetime.
+        published_at: Publication datetime (timezone-aware).
         text: Description or content of the news item.
         created_at: Creation timestamp in the database.
         entities: Related extracted entities.
@@ -32,10 +32,12 @@ class News(Base):
     source: Mapped[str] = mapped_column(String, nullable=False)
     title: Mapped[str] = mapped_column(String, nullable=False)
     link: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    published_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     entities: Mapped[list[Entity]] = relationship(

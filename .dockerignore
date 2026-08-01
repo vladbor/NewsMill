@@ -20,7 +20,7 @@ __pycache__
 tests
 
 # Documentation
-README.md
+# NOTE: README.md must NOT be excluded — hatchling reads it during `uv sync`.
 
 # Migrations
 migrations

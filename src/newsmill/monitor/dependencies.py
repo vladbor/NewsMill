@@ -27,5 +27,5 @@ async def get_http_client() -> AsyncIterator[httpx.AsyncClient]:
         A configured :class:`httpx.AsyncClient` instance.
     """
     timeout = httpx.Timeout(connect=10.0, read=30.0, write=30.0, pool=30.0)
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
         yield client

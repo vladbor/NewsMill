@@ -19,19 +19,30 @@ ENV \
     # Install packages into a dedicated virtual environment.
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     # Use system Python for the created virtual environment.
-    UV_PYTHON_INSTALL_DIR=/opt/uv-python
+    UV_PYTHON_INSTALL_DIR=/opt/uv-python \
+    # Make the venv's python/pip available on PATH in the builder stage.
+    PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
 # Copy dependency manifests first to leverage Docker layer caching.
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 
 # Install production dependencies only (skip the dev dependency group).
-RUN uv sync --frozen --no-dev
+# --no-install-project avoids building the project before its source is copied.
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy the application source code and configuration files.
 COPY src/ ./src/
 COPY newsfeeds.yaml ./
+
+# Install the project itself now that the source is available.
+RUN uv sync --frozen --no-dev
+
+# Download the Russian SpaCy NER model used by the Worker service.
+# Done in the builder stage where uv is available; the model installs into
+# /opt/venv and is copied to the runtime stage with the venv.
+RUN python -m spacy download ru_core_news_md
 
 # ---- Runtime stage ----
 FROM python:3.12-slim AS runtime
@@ -52,9 +63,6 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/newsfeeds.yaml /app/newsfeeds.yaml
-
-# Download the Russian SpaCy NER model used by the Worker service.
-RUN python -m spacy download ru_core_news_md
 
 # Default command runs the Monitor service (overridden for Worker in compose).
 CMD ["uvicorn", "newsmill.monitor.app:app", "--host", "0.0.0.0", "--port", "8000"]

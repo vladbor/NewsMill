@@ -33,7 +33,7 @@ NewsMill — это распределённая система, состоящ�
 - **FastAPI** + **Uvicorn** — веб-фреймворк (Monitor)
 - **FastStream** + **aio-pika** — потребление сообщений из RabbitMQ (Worker)
 - **RabbitMQ** — брокер сообщений (в Docker)
-- **PostgreSQL 17** — база данных (в Docker)
+- **PostgreSQL 18** — база данных (в Docker)
 - **SQLAlchemy** + **Alembic** — ORM и миграции
 - **SpaCy** — NER с русскоязычными моделями
 - **httpx** — асинхронный HTTP-клиент
@@ -102,9 +102,9 @@ docker-compose.yml   # Оркестрация сервисов (Docker Compose)
 | `source`       | string   | NOT NULL                     | Название агентства                |
 | `title`        | string   | NOT NULL                     | Заголовок новости                 |
 | `link`         | string   | UNIQUE, NOT NULL             | Ссылка на статью                  |
-| `published_at` | datetime | NOT NULL                     | Дата публикации                   |
+| `published_at` | datetime with time zone | NOT NULL        | Дата публикации                   |
 | `text`         | text     | nullable                     | Описание/содержимое новости       |
-| `created_at`   | datetime | NOT NULL, default now        | Время создания записи в БД        |
+| `created_at`   | datetime with time zone | NOT NULL, default now | Время создания записи в БД  |
 
 ### Таблица `entities`
 

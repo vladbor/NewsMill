@@ -111,23 +111,18 @@ def create_app(settings: Settings) -> FastStream:
     )
 
     @broker.subscriber(settings.rabbitmq_queue)
-    async def handle_news_item(body: bytes, logger: Logger) -> None:
+    async def handle_news_item(item: NewsItem, logger: Logger) -> None:
         """Process a single news message from the queue.
 
-        Deserializes the message, extracts named entities, and persists the
-        news item plus its entities to the database. Errors are logged and the
+        FastStream deserializes the JSON message body into a validated
+        :class:`NewsItem`. Named entities are extracted and the news item plus
+        its entities are persisted to the database. Errors are logged and the
         message is acknowledged so a malformed item does not crash the Worker.
 
         Args:
-            body: Raw JSON message body.
+            item: The validated news item deserialized from the queue message.
             logger: FastStream logger.
         """
-        try:
-            item = _deserialize_item(body)
-        except (json.JSONDecodeError, ValueError) as exc:
-            logger.error("Failed to deserialize message: %s", exc)
-            return
-
         extracted = extract_entities(item.title, item.text)
         try:
             await _persist(settings, item, extracted)

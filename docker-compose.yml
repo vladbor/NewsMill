@@ -30,7 +30,7 @@ services:
 
   # PostgreSQL database (stores news items and extracted entities).
   db:
-    image: postgres:17
+    image: postgres:18
     container_name: newsmill-db
     restart: unless-stopped
     ports:
@@ -40,7 +40,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASS:-postgres}
       POSTGRES_DB: ${DB_NAME:-newsfeeds}
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - db-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-newsfeeds}"]
       interval: 10s
