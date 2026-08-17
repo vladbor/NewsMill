@@ -14,8 +14,7 @@ FastAPI-сервис опроса RSS-лент. Общие правила — в
 ## Правила именно здесь
 
 - Эндпоинты: `GET /health` → `{"status": "ok"}`; `POST /refresh` → `{"published": <count>}`.
-- Дедупликация — по `guid` через `seen_guids` (память процесса; план 001 —
-  `docs/execution-plans/001-dedup-postgres.md` — перенесёт её в БД).
+- Дедупликация — по `guid` через `seen_guids`.
 - Ошибка отдельной ленты или публикации логируется и не роняет опрос остальных лент.
 - Интервал опроса — из `Settings.poll_interval_seconds`, не хардкодить 300.
 - Контракт сообщения — `docs/architecture/message-contract.md`; правки согласовывать.
