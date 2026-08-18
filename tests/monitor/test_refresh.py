@@ -14,15 +14,29 @@ from newsmill.monitor.dependencies import get_http_client
 
 @pytest.fixture
 def patched_lifespan():
-    """Patch RabbitMQ and background polling to avoid real I/O during startup.
+    """Patch RabbitMQ, background polling and the DB to avoid real I/O.
 
     Yields:
         Nothing; restores patches on teardown.
     """
+    seen: set[str] = set()
+
+    async def _claim(guid: str) -> bool:
+        if guid in seen:
+            return False
+        seen.add(guid)
+        return True
+
     with (
         patch("newsmill.monitor.app.NewsPublisher.connect", new=AsyncMock()),
         patch("newsmill.monitor.app.NewsPublisher.close", new=AsyncMock()),
         patch("newsmill.monitor.app._periodic_poll", new=AsyncMock()),
+        patch("newsmill.monitor.app.get_engine", return_value=object()),
+        patch("newsmill.monitor.app.close_engine", new=AsyncMock()),
+        patch(
+            "newsmill.monitor.dedup.GuidRegistry.claim",
+            new=AsyncMock(side_effect=_claim),
+        ),
     ):
         yield
 

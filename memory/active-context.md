@@ -2,18 +2,19 @@
 
 ## Текущая задача
 
-Реорганизация документации (ДЗ №3, Части 1–4) — **завершена**:
-1. Корневой `AGENTS.md` — карта с условиями-указателями (71 строка).
-2. Вложенные `AGENTS.md` в `src/newsmill/{monitor,worker,common}/`.
-3. `docs/`: план 001 (дедупликация GUID в PostgreSQL), known-issues (добавлен
-   пункт про retry лент), agent-workflow (цикл с memory/), coding-standards.
-4. `memory/`: active-context, progress, decisions (ADR-001…005).
-5. `.clinerules/` удалён, контент разнесён по docs/ и вложенным AGENTS.md.
+План 001 — дедупликация GUID в PostgreSQL — **реализован**:
+- `processed_items` (PK по `guid`) + `GuidRegistry.claim` (атомарный
+  `INSERT ... ON CONFLICT DO NOTHING RETURNING`) в `monitor/dedup.py`.
+- `polling.py`/`app.py` переведены с `seen_guids` на claim; сбой БД → публикация
+  (at-least-once, финальный гейт — `UNIQUE` на `news.link` у воркера).
+- Общие движок/сессии перенесены в `common/db/session.py` (ADR-007).
+- Миграция `18ff3d1326cf` сгенерирована, НЕ применялась.
 
 ## Следующий шаг
 
-Выполнять `docs/execution-plans/001-dedup-postgres.md` — перенос `seen_guids`
-из памяти Monitor в PostgreSQL (снять известную проблему #1).
+Пользователь вручную: `alembic upgrade head` (применить миграцию) и
+`docker compose up --build` (пересобрать сервисы), затем проверить, что после
+рестарта Monitor дубли не публикуются.
 
 ## Открытые вопросы
 

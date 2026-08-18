@@ -10,15 +10,29 @@ from newsmill.monitor.app import app
 
 
 def _patch_lifespan() -> list:
-    """Patch RabbitMQ and background polling to avoid real I/O in tests.
+    """Patch RabbitMQ, background polling and the DB to avoid real I/O.
 
     Returns:
         A list of active patch objects for cleanup.
     """
+    seen: set[str] = set()
+
+    async def _claim(guid: str) -> bool:
+        if guid in seen:
+            return False
+        seen.add(guid)
+        return True
+
     patches = [
         patch("newsmill.monitor.app.NewsPublisher.connect", new=AsyncMock()),
         patch("newsmill.monitor.app.NewsPublisher.close", new=AsyncMock()),
         patch("newsmill.monitor.app._periodic_poll", new=AsyncMock()),
+        patch("newsmill.monitor.app.get_engine", return_value=object()),
+        patch("newsmill.monitor.app.close_engine", new=AsyncMock()),
+        patch(
+            "newsmill.monitor.dedup.GuidRegistry.claim",
+            new=AsyncMock(side_effect=_claim),
+        ),
     ]
     for p in patches:
         p.start()

@@ -8,7 +8,8 @@ RSS-ленты ─▶ Monitor ─▶ RabbitMQ ─▶ Worker ─▶ PostgreSQL
 ```
 
 - **Monitor** (FastAPI) — источник входа: опрашивает RSS-ленты из
-  `newsfeeds.yaml`, дедуплицирует по `guid`, публикует новые записи в очередь.
+  `newsfeeds.yaml`, дедуплицирует GUID в таблице `processed_items` (PostgreSQL),
+  публикует новые записи в очередь.
 - **RabbitMQ** — durable-очередь (`RABBITMQ_QUEUE`, по умолчанию `news`):
   единственный мост между Monitor и Worker, развязывает их жизненные циклы.
 - **Worker** (FastStream) — консюмер очереди: извлекает сущности SpaCy и
@@ -24,15 +25,17 @@ RSS-ленты ─▶ Monitor ─▶ RabbitMQ ─▶ Worker ─▶ PostgreSQL
 | `common/models.py` | `NewsItem` — Pydantic-модель записи: `source, title, link, guid, published_at, text` |
 | `common/config.py` | `Settings` (`pydantic-settings`, загрузка из `.env`), сборка `database_url` из `DB_*` |
 | `common/feeds.py` | `load_newsfeeds()` — парсинг и валидация `newsfeeds.yaml` |
-| `common/db/models.py` | ORM-модели `News`, `Entity` (SQLAlchemy 2.0, `Mapped`) |
+| `common/db/models.py` | ORM-модели `News`, `Entity`, `ProcessedItem` (SQLAlchemy 2.0, `Mapped`) |
+| `common/db/session.py` | Общие `get_engine`/`get_session_factory`/`get_session`/`close_engine` для обоих сервисов |
 
 ### monitor/ — FastAPI-сервис
 
 | Модуль | Ответственность |
 |---|---|
-| `monitor/app.py` | Приложение FastAPI; lifespan (старт/стоп периодической задачи), эндпоинты `/health`, `/refresh` |
+| `monitor/app.py` | Приложение FastAPI; lifespan (старт/стоп периодической задачи, engine + registry), эндпоинты `/health`, `/refresh` |
 | `monitor/rss.py` | `fetch_feed()` — HTML-запрос через `httpx.AsyncClient`, парсинг RSS 2.0/1.0 через `ElementTree` |
-| `monitor/polling.py` | `poll_all_feeds()` — проход по всем лентам, дедупликация по `guid`, публикация, счётчик |
+| `monitor/polling.py` | `poll_all_feeds()` — проход по всем лентам, атомарный claim GUID, публикация, счётчик |
+| `monitor/dedup.py` | `GuidRegistry` — claim GUID в `processed_items` (`INSERT ... ON CONFLICT DO NOTHING`) |
 | `monitor/publisher.py` | `NewsPublisher` — подключение к RabbitMQ (`aio-pika`), durable-очередь, публикация JSON |
 | `monitor/dependencies.py` | `get_settings`, `get_http_client` — зависимости для эндпоинтов |
 
@@ -43,7 +46,7 @@ RSS-ленты ─▶ Monitor ─▶ RabbitMQ ─▶ Worker ─▶ PostgreSQL
 | `worker/main.py` | Точка входа `python -m newsmill.worker.main` |
 | `worker/app.py` | `create_app()` — FastStream + `RabbitBroker`, подписка на очередь, `_deserialize_item`, `_persist` |
 | `worker/ner.py` | SpaCy NER: загрузка модели `ru_core_news_md`, `extract_entities()`, агрегация счетчиков |
-| `worker/database.py` | Async-движок/сессии SQLAlchemy (`asyncpg`), общие `get_engine`/`get_session_factory` |
+| `worker/database.py` | Re-export общих сессий из `common/db/session.py` (обратная совместимость) |
 
 ## 3. Эндпоинты Monitor (FastAPI)
 
@@ -56,6 +59,8 @@ RSS-ленты ─▶ Monitor ─▶ RabbitMQ ─▶ Worker ─▶ PostgreSQL
 
 - **Monitor → очередь**: JSON-сериализация `NewsItem` (`model_dump(mode="json")`),
   delivery_mode PERSISTENT. Детали — `architecture/message-contract.md`.
+- **Monitor → PostgreSQL**: атомарный claim GUID в `processed_items`
+  (дедупликация, переживает рестарт). Модель — `architecture/data-model.md`.
 - **очередь → Worker**: FastStream десериализует тело в `NewsItem` (`model_validate`).
 - **Worker → PostgreSQL**: вставка `News` + связанных `Entity` одной транзакцией.
   Модель — `architecture/data-model.md`.

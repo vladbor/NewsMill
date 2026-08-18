@@ -68,3 +68,23 @@ class Entity(Base):
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     news: Mapped[News] = relationship(back_populates="entities")
+
+
+class ProcessedItem(Base):
+    """A GUID already published to the queue by the Monitor.
+
+    Used for cross-restart deduplication: the Monitor claims a GUID atomically
+    (``INSERT ... ON CONFLICT DO NOTHING``) before publishing, so a restarted
+    Monitor does not republish already-processed items.
+
+    Attributes:
+        guid: Unique identifier of the news item (primary key).
+        created_at: Timestamp when the GUID was first claimed.
+    """
+
+    __tablename__ = "processed_items"
+
+    guid: Mapped[str] = mapped_column(String, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

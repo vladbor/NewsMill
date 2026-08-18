@@ -116,6 +116,17 @@ docker-compose.yml   # Оркестрация сервисов (Docker Compose)
 | `label`   | string   | NOT NULL                             | Тип сущности (PER, ORG, LOC, MISC)|
 | `count`   | integer  | NOT NULL, default 1                  | Количество вхождений              |
 
+### Таблица `processed_items`
+
+Реестр GUID, уже опубликованных Monitor'ом в очередь (дедупликация, переживает
+рестарт Monitor). Запись создаётся атомарно перед публикацией
+(`INSERT ... ON CONFLICT (guid) DO NOTHING`).
+
+| Колонка      | Тип      | Ограничения                     | Описание                     |
+|--------------|----------|---------------------------------|------------------------------|
+| `guid`       | string   | PK, NOT NULL                    | Уникальный идентификатор новости |
+| `created_at` | datetime with time zone | NOT NULL, default now | Момент первого claim      |
+
 ## Миграции (Alembic)
 
 Миграции управляются через [Alembic](https://alembic.sqlalchemy.org/) и находятся в каталоге `migrations/`.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 
 import httpx
 
@@ -16,19 +16,22 @@ async def poll_all_feeds(
     client: httpx.AsyncClient,
     feeds: Mapping[str, str],
     publisher,
-    seen_guids: set[str],
+    claim: Callable[[str], Awaitable[bool]],
 ) -> int:
     """Poll all RSS feeds and publish new items to the queue.
 
     Each feed is fetched and parsed; errors on individual feeds are logged and
-    do not stop the remaining feeds. Items whose GUID is already in
-    ``seen_guids`` are skipped (deduplication).
+    do not stop the remaining feeds. A GUID is claimed via ``claim`` before
+    publishing: already processed GUIDs are skipped. If the claim fails (for
+    example a database outage) the item is still published, because the final
+    duplicate guard is the ``news.link`` unique constraint in the Worker.
 
     Args:
         client: Shared httpx async client.
         feeds: Mapping of agency name to RSS feed URL.
         publisher: Object with an async ``publish(item)`` method.
-        seen_guids: Set of already-processed GUIDs (mutated in place).
+        claim: Async predicate that atomically claims a GUID and returns
+            ``True`` if the item should be published.
 
     Returns:
         The number of new items published to the queue.
@@ -46,9 +49,15 @@ async def poll_all_feeds(
 
         for item in items:
             item = item.model_copy(update={"source": source})
-            if item.guid in seen_guids:
+            try:
+                claimed = await claim(item.guid)
+            except Exception:
+                logger.exception(
+                    "Failed to claim guid %s; publishing anyway", item.guid
+                )
+                claimed = True
+            if not claimed:
                 continue
-            seen_guids.add(item.guid)
             await publisher.publish(item)
             published_count += 1
 

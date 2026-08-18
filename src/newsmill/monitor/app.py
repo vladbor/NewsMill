@@ -9,9 +9,12 @@ from typing import Any
 
 import httpx
 from fastapi import Depends, FastAPI
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from newsmill.common.config import Settings
+from newsmill.common.db.session import close_engine, get_engine
 from newsmill.common.feeds import load_newsfeeds
+from newsmill.monitor.dedup import GuidRegistry
 from newsmill.monitor.dependencies import get_http_client, get_settings
 from newsmill.monitor.polling import poll_all_feeds
 from newsmill.monitor.publisher import NewsPublisher
@@ -26,7 +29,7 @@ class MonitorState:
         settings: Application settings.
         feeds: Mapping of agency name to RSS feed URL.
         publisher: RabbitMQ publisher.
-        seen_guids: Set of already-processed GUIDs.
+        registry: Database-backed GUID deduplication registry.
         poll_task: Reference to the periodic polling background task.
     """
 
@@ -45,7 +48,8 @@ class MonitorState:
             password=settings.rabbitmq_pass,
             queue_name=settings.rabbitmq_queue,
         )
-        self.seen_guids: set[str] = set()
+        self.engine: AsyncEngine | None = None
+        self.registry: GuidRegistry | None = None
         self.poll_task: asyncio.Task[Any] | None = None
 
 
@@ -62,7 +66,7 @@ async def _periodic_poll(state: MonitorState) -> None:
                 follow_redirects=True,
             ) as client:
                 await poll_all_feeds(
-                    client, state.feeds, state.publisher, state.seen_guids
+                    client, state.feeds, state.publisher, state.registry.claim
                 )
         except Exception:
             logger.exception("Periodic poll failed")
@@ -81,6 +85,8 @@ async def lifespan(app: FastAPI):
     app.state.monitor = state
 
     state.feeds = load_newsfeeds(settings.newsfeeds_path)
+    state.engine = get_engine(settings)
+    state.registry = GuidRegistry(state.engine)
     await state.publisher.connect()
     state.poll_task = asyncio.create_task(_periodic_poll(state))
     logger.info("Monitor started with %d feeds", len(state.feeds))
@@ -92,6 +98,7 @@ async def lifespan(app: FastAPI):
         with suppress(asyncio.CancelledError):
             await state.poll_task
     await state.publisher.close()
+    await close_engine()
     logger.info("Monitor stopped")
 
 
@@ -121,5 +128,7 @@ async def refresh(
         A JSON object with the count of new news items published.
     """
     state: MonitorState = app.state.monitor
-    count = await poll_all_feeds(client, state.feeds, state.publisher, state.seen_guids)
+    count = await poll_all_feeds(
+        client, state.feeds, state.publisher, state.registry.claim
+    )
     return {"published": count}
