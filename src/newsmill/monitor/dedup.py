@@ -50,7 +50,7 @@ class GuidRegistry:
             pg_insert(ProcessedItem)
             .values(guid=guid)
             .on_conflict_do_nothing()
-            .returning(ProcessedItem.id)
+            .returning(ProcessedItem.guid)
         )
         async with self._engine.begin() as conn:
             result = await conn.execute(stmt)

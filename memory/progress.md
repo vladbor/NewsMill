@@ -4,7 +4,8 @@
 
 | Дата | Сделано | Осталось |
 |---|---|---|
-| 2026-08-18 | Модель `ProcessedItem` (`common/db/models.py`); общий `common/db/session.py` (worker/database.py → re-export); `GuidRegistry.claim` (`monitor/dedup.py`, INSERT ON CONFLICT); `polling.py` на claim (сбой БД → at-least-once); `app.py` без `seen_guids` (lifespan: engine+registry); миграция `18ff3d1326cf` сгенерирована (НЕ применена); тесты обновлены (17 pass, ruff чистый); docs/ и memory/ обновлены | Применить миграцию вручную (`alembic upgrade head`), пересобрать docker (`docker compose up --build`), e2e-проверка «рестарт без дублей» |
+| 2026-08-18 | Модель `ProcessedItem` (`common/db/models.py`); общий `common/db/session.py` (worker/database.py → re-export); `GuidRegistry.claim` (`monitor/dedup.py`, INSERT ON CONFLICT); `polling.py` на claim (сбой БД → at-least-once); `app.py` без `seen_guids` (lifespan: engine+registry); миграция `18ff3d1326cf` сгенерирована (НЕ применена); тесты обновлены (17 pass, ruff чистый); docs/ и memory/ обновлены | Применить миграцию вручную, пересобрать docker |
+| 2026-08-18 | Миграция применена + docker пересобран (пользователь). Найден и исправлен баг: `.returning(ProcessedItem.id)` (нет такого атрибута) → `.returning(ProcessedItem.guid)`; добавлен `tests/monitor/test_dedup.py` (19 tests, ruff чистый). E2e-проверка: после рестарта Monitor `processed_items` 609 → 611 (только новые), дубли не перепубликованы | Нет — план 001 закрыт |
 
 ## Следующая задача
 
