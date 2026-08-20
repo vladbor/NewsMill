@@ -94,3 +94,19 @@
   Нюанс: пурдж `processed_items` старше порога может повторно опубликовать GUID
   «ожившей» ленты — дубль блокируется `UNIQUE` на `news.link` у воркера
   (зафиксировано в `data-model.md` §7).
+
+## ADR-009: purge в продакшене — systemd timer на хосте
+
+- **Статус**: принято (2026-08-20)
+- **Контекст**: purge (`newsmill.maintenance.purge`) — однократная batch-задача,
+  а не демон; в продакшене нужен планировщик. Prod — однохостовой
+  docker-compose, оркестраторов (K8s/Nomad) нет.
+- **Решение**: systemd-юниты `deploy/systemd/` — `newsmill-purge.timer`
+  (ежедневно 03:00, `Persistent=true`, `RandomizedDelaySec=600`) вызывает
+  `newsmill-purge.service` (`Type=oneshot`,
+  `docker compose run --rm --no-deps maintenance`). Выполнение в том же образе,
+  что и сервисы; `.env` читается compose из `WorkingDirectory`.
+- **Последствия**: сервисы не усложняются фоновыми задачами; задача требует
+  поднятого стека (`--no-deps` не стартует БД); логи в journald;
+  idempotent (пустой прогон — 0 строк). Операционный runbook —
+  `docs/architecture/operations.md`.

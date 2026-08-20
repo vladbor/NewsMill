@@ -1,0 +1,14 @@
+[Unit]
+Description=NewsMill data retention purge (records older than DELETE_AFTER)
+Documentation=file:///REPLACE/PROJECT/docs/architecture/operations.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/REPLACE/PROJECT
+ExecStart=/usr/bin/docker compose run --rm --no-deps maintenance
+
+[Install]
+WantedBy=timers.target

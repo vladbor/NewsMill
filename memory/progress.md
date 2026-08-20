@@ -14,6 +14,7 @@
 | 2026-08-19 | План оформлен, known-issues #7/#9 зафиксированы (задача была только документной) | — |
 | 2026-08-20 | `Settings.delete_after_days` (`DELETE_AFTER`); `common/db/retention.py` (`purge_old_records`, одна транзакция, каскад); entrypoint `newsmill/maintenance/purge.py`; compose-сервис `maintenance` (профиль `tools`); tests на aiosqlite (in-memory SQLite, PRAGMA FKs, 7 тестов); README.md, data-model.md, known-issues #9 → решено, ADR-008, active-context; ruff/pytest зелёные | Ручная проверка пользователем |
 | 2026-08-20 | Ручная проверка выполнена: `docker compose run --rm maintenance` → `Purged 0 processed_items and 0 news older than 90 days` (DELETE_AFTER=90, все записи моложе порога) | Нет — план 003 закрыт |
+| 2026-08-20 | Продакшен-запуск purge: `deploy/systemd/` (newsmill-purge.{service,timer}, README), runbook `docs/architecture/operations.md`, ADR-009, README + план 003 обновлены | Нет |
 
 ## Следующая задача
 

@@ -60,6 +60,7 @@ pyproject.toml       # Конфигурация проекта и зависим
 newsfeeds.yaml       # Список RSS-лент
 Dockerfile           # Многоступенчатый Docker-образ приложения
 docker-compose.yml   # Оркестрация сервисов (Docker Compose)
+deploy/              # Продакшен-артефакты (systemd-юниты для purge)
 .dockerignore        # Исключения из контекста сборки Docker
 AGENTS.md            # Инструкции для агента: карта с указателями на docs/ и memory/
 docs/                # Стабильное знание о системе (архитектура, планы, техдолг)
@@ -210,12 +211,16 @@ Worker подписывается на очередь RabbitMQ (`RABBITMQ_QUEUE`
 
 ```bash
 python -m newsmill.maintenance.purge          # локально
-docker compose run --rm maintenance            # в Docker
+docker compose run --rm maintenance            # в Docker, вручную
 ```
 
 Сервис `maintenance` в `docker-compose.yml` объявлен с профилем `tools`, поэтому
 он не поднимается командой `docker compose up` и запускается только явно, как
 выше. Миграций не требует — схема не меняется.
+
+В продакшене команда выполняется по расписанию systemd-таймером
+(`deploy/systemd/newsmill-purge.timer`, ежедневно 03:00) — см.
+`docs/architecture/operations.md` (runbook) и ADR-009.
 
 ### Все сервисы (Docker Compose)
 
