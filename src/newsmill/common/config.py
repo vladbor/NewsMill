@@ -28,6 +28,8 @@ class Settings(BaseSettings):
         db_user: PostgreSQL username (``DB_USER``).
         db_pass: PostgreSQL password (``DB_PASS``).
         db_name: PostgreSQL database name (``DB_NAME``).
+        delete_after_days: Age in days after which records are purged
+            (``DELETE_AFTER``).
     """
 
     model_config = SettingsConfigDict(
@@ -50,6 +52,7 @@ class Settings(BaseSettings):
     db_user: str = Field(default="postgres", validation_alias="DB_USER")
     db_pass: str = Field(default="postgres", validation_alias="DB_PASS")
     db_name: str = Field(default="newsfeeds", validation_alias="DB_NAME")
+    delete_after_days: int = Field(default=30, validation_alias="DELETE_AFTER")
 
     @computed_field
     @property

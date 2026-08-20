@@ -107,6 +107,28 @@ services:
     networks:
       - newsmill-network
 
+  # Maintenance service - manual data retention purge (records older than
+  # DELETE_AFTER days). Runs on demand, not on 'docker compose up':
+  #   docker compose run --rm maintenance
+  maintenance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: newsmill-maintenance
+    restart: "no"
+    profiles: ["tools"]
+    command: ["python", "-m", "newsmill.maintenance.purge"]
+    env_file:
+      - .env
+    environment:
+      # Override host values with Docker service names on the shared network.
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - newsmill-network
+
 volumes:
   queue-data:
     name: newsmill-queue-data

@@ -59,3 +59,14 @@ RETURNING` (`monitor/dedup.py`), поэтому гонок «проверил-в
   (`alembic upgrade head`), никогда не автоприменяются.
 - Генерация из ORM: `uv run alembic revision --autogenerate -m "описание"`.
 - Строка подключения собирается в `migrations/env.py` из `DB_*` (asyncpg).
+
+## 7. Retention (удаление устаревших записей)
+
+- Записи старше `DELETE_AFTER` дней (из `.env`) удаляются командой
+  `python -m newsmill.maintenance.purge` (`common/db/retention.py`): сначала
+  `processed_items`, затем `news` по `created_at` (сущности удаляются каскадом),
+  всё в одной транзакции.
+- Нюанс: удаление `processed_items` старше порога может вернуть `guid` ленты,
+  «ожившей» после долгой паузы, в разряд «новых» — он будет повторно
+  опубликован, но дубль сохранения в воркере всё равно блокируется `UNIQUE` на
+  `news.link`. Схема не меняется, миграция не нужна.

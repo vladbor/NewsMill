@@ -51,6 +51,7 @@ src/
     common/          # Общий код (модели, конфигурация, утилиты)
     monitor/         # Monitor-сервис (FastAPI)
     worker/          # Worker-сервис (FastStream)
+    maintenance/     # Обслуживание: purge устаревших записей (retention)
 tests/
   common/            # Тесты общего кода
   monitor/           # Тесты Monitor-сервиса
@@ -95,6 +96,7 @@ migrations/          # Миграции Alembic
 | `DB_USER`                | Пользователь PostgreSQL                          |
 | `DB_PASS`                | Пароль PostgreSQL                                |
 | `DB_NAME`                | Имя базы данных PostgreSQL (`newsfeeds`)         |
+| `DELETE_AFTER`           | Возраст записей (дней), старше которых purge удаляет (по умолчанию `30`) |
 
 ## База данных
 
@@ -201,6 +203,20 @@ python -m src.newsmill.worker.main
 
 Worker подписывается на очередь RabbitMQ (`RABBITMQ_QUEUE`), десериализует сообщения в `NewsItem`, извлекает именованные сущности (PER, ORG, LOC, MISC) с помощью SpaCy (`ru_core_news_md`) и сохраняет новость с сущностями в PostgreSQL.
 
+### Очистка старых записей (retention)
+
+Записи базы данных (новости, сущности каскадом и реестр `processed_items`) старше
+`DELETE_AFTER` дней из `.env` удаляются отдельной командой:
+
+```bash
+python -m newsmill.maintenance.purge          # локально
+docker compose run --rm maintenance            # в Docker
+```
+
+Сервис `maintenance` в `docker-compose.yml` объявлен с профилем `tools`, поэтому
+он не поднимается командой `docker compose up` и запускается только явно, как
+выше. Миграций не требует — схема не меняется.
+
 ### Все сервисы (Docker Compose)
 
 Запуск всех компонентов NewsMill — **4 отдельных контейнера** (RabbitMQ, PostgreSQL, Monitor, Worker) — одной командой:
@@ -241,4 +257,5 @@ docker compose down
 - [x] Миграции (Alembic)
 - [x] Docker Compose
 - [x] Дедупликация GUID в PostgreSQL (`processed_items`, план 001)
+- [x] Purge устаревших записей по `DELETE_AFTER` (план 003)
 - [x] Harness для агента: `AGENTS.md`, `docs/`, `memory/`, `REPORT.md`

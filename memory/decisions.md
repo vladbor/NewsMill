@@ -77,3 +77,20 @@
   дублирования ~40 строк инфраструктурного кода.
 - **Последствия**: контракт сообщения (`NewsItem`) не затронут; оба сервиса
   используют единый session-модуль.
+
+## ADR-008: retention — отдельная purge-команда по DELETE_AFTER
+
+- **Статус**: принято (2026-08-20)
+- **Контекст**: known-issues #9 — `news`/`entities`/`processed_items` хранятся
+  бессрочно, база неограниченно растёт; #7 (рост `processed_items`) решается
+  этим же механизмом.
+- **Решение**: `Settings.delete_after_days` из `DELETE_AFTER` (`.env`, default 30);
+  `common/db/retention.py` (`purge_old_records`) — одна транзакция: первым
+  удаляется `processed_items`, затем `news` (сущности каскадом). Запуск —
+  отдельный entrypoint `python -m newsmill.maintenance.purge`, в Docker —
+  сервис `maintenance` с профилем `tools` (не поднимается на `docker compose up`).
+  Тесты — на in-memory SQLite (`aiosqlite`, dev-зависимость).
+- **Последствия**: сервисы не усложняются фоновыми задачами; миграций нет.
+  Нюанс: пурдж `processed_items` старше порога может повторно опубликовать GUID
+  «ожившей» ленты — дубль блокируется `UNIQUE` на `news.link` у воркера
+  (зафиксировано в `data-model.md` §7).

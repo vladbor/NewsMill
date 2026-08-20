@@ -57,6 +57,8 @@ docker compose up --build              # 4 контейнера: queue, db, moni
   `docs/design-docs/broker-choice.md`.
 - **Перед тем как пометить проблему «сознательно не чиним»** —
   `docs/technical-debt/known-issues.md`.
+- **После закрытия задачи** — обнови статус плана в `execution-plans` и
+  `docs/technical-debt/known-issues.md`, актуализируй `memory/active-context.md`.
 - **Как агент работает здесь** — `docs/principles/agent-workflow.md` и
   `docs/principles/coding-standards.md`.
 

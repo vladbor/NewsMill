@@ -2,21 +2,24 @@
 
 ## Текущая задача
 
-План 001 — дедупликация GUID в PostgreSQL — **реализован**:
-- `processed_items` (PK по `guid`) + `GuidRegistry.claim` (атомарный
-  `INSERT ... ON CONFLICT DO NOTHING RETURNING`) в `monitor/dedup.py`.
-- `polling.py`/`app.py` переведены с `seen_guids` на claim; сбой БД → публикация
-  (at-least-once, финальный гейт — `UNIQUE` на `news.link` у воркера).
-- Общие движок/сессии перенесены в `common/db/session.py` (ADR-007).
-- Миграция `18ff3d1326cf` сгенерирована, НЕ применялась.
+План 003 — retention (удаление записей старше `DELETE_AFTER`) — **реализован**:
+- `Settings.delete_after_days` (`DELETE_AFTER`, default 30) + `.env.EXAMPLE`.
+- `common/db/retention.py`: `purge_old_records(session, days)` — одна
+  транзакция, `processed_items` → `news` (сущности каскадом), `PurgeResult`.
+- Entrypoint `python -m newsmill.maintenance.purge`
+  (`newsmill/maintenance/purge.py`), в Docker — сервис `maintenance` с
+  профилем `tools`: `docker compose run --rm maintenance`.
+- Тесты `tests/common/` на in-memory SQLite (`aiosqlite`, PRAGMA FKs):
+  каскад, атомарность (rollback при сбое) — 7 тестов.
+- docs/ и memory/ обновлены (ADR-008, known-issues #7/#9 → решено).
 
 ## Следующий шаг
 
-Пользователь применил миграцию и пересобрал docker. E2e-проверка выполнена:
-после рестарта Monitor `processed_items` 609 → 611 (только новые GUID), дубли
-не перепубликованы. План 001 закрыт.
+План 003 закрыт: ручная проверка выполнена (`docker compose run --rm maintenance`
+→ `Purged 0 processed_items and 0 news older than 90 days`; `DELETE_AFTER=90` в
+`.env`, все записи младше порога). Активной доработки нет.
 
 ## Открытые вопросы
 
 - Нет. Возможные следующие доработки: retry лент (known-issues #6),
-  DLX/retry очереди (#3), очистка `processed_items` (#7).
+  DLX/retry очереди (#3), единый механизм логирования (план 002, #8).
